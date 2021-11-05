@@ -39,13 +39,13 @@ fetch(`https://coronscrapper.azurewebsites.net/api/GetExposures`,
     {
         // Work with JSON data here
         //console.log(data)
-        const obj = JSON.parse(data)
-        l = Object.keys(obj.Result).length
-
-        for (var item in obj.Result) 
+        const objs = JSON.parse(data)
+        //l = Object.keys(obj.Result).length
+        //obj.Result
+        for (var item in objs) 
         {
             //console.log(obj.Result[item])
-            dataItem = obj.Result[item]
+            dataItem = objs[item]
             const latLng = new google.maps.LatLng(dataItem.Latitude, dataItem.Longitude);
 
             var marker = new google.maps.Marker({
