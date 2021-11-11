@@ -1,99 +1,113 @@
+<!--
+Copyright 2018 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+PDX-License-Identifier: MIT-0 (For details, see https://github.com/awsdocs/amazon-rekognition-developer-guide/blob/master/LICENSE-SAMPLECODE.)
+-->
 <!DOCTYPE html>
 <html>
-    
 <head>
-<link rel="stylesheet" href="main.css">
+  <script src="https://raw.githubusercontent.com/amazon-archives/amazon-cognito-identity-js/master/dist/aws-cognito-sdk.js"></script>
+  <script src="https://raw.githubusercontent.com/amazon-archives/amazon-cognito-identity-js/master/dist/amazon-cognito-identity.min.js"></script>
+  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.16.0.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Rekognition</title>
 </head>
 
 <body>
-    <div id='wrapper'>
-        <div id='header'>HUOM! Tieto ei sisällä kaikkia paikkoja, ja voi olla virheellistä!<div>
-        <div id="googleMap"></div>
-        <div id='footer'>Oikea tieto https://korona.soite.fi/altistumispaikat/<div>
-   </div>
-
-<script>
-var prev_infowindow =false; 
-
-function myMap() 
-{
-    var mapProp= {
-  center:new google.maps.LatLng(63.8455696,23.1328219),
-  zoom:9,
-};
-
-
-
-var map = new google.maps.Map(document.getElementById("googleMap"),mapProp);
-
-fetch(`https://coronscrapper.azurewebsites.net/api/GetExposures`,
-        {method: 'GET',headers: {
-        'Accept': 'application/json'
-        }}
-        )
-    .then((response) => 
-    {
-        return response.json()
-    })
-    .then((data) => 
-    {
-        // Work with JSON data here
-        //console.log(data)
-        const objs = JSON.parse(data)
-        //l = Object.keys(obj.Result).length
-        //obj.Result
-        for (var item in objs) 
-        {
-            //console.log(obj.Result[item])
-            dataItem = objs[item]
-            const latLng = new google.maps.LatLng(dataItem.Latitude, dataItem.Longitude);
-
-            var marker = new google.maps.Marker({
-            position: latLng,
-            map: map,
-            icon: "icon49.png"
-            });
-
-            attachSecretMessage(marker, dataItem.FullText);
-        }
-    })
-    .catch((err) => {
-        // Do something for an error here
-    })
-
-}
-
-function attachSecretMessage(marker, secretMessage) 
-{
-  const infowindow = new google.maps.InfoWindow({
-    content: secretMessage,
-  });
-
-  marker.addListener("click", () => 
-  {
-    if( prev_infowindow ) {
-           prev_infowindow.close();
-        }
-
-        prev_infowindow = infowindow;
-
-    infowindow.open(marker.get("map"), marker);
-  });
-}
-
-$(document).ready(function () {
-  timeout(Alert(""),5000)
-});
-
-</script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCf0kv8oNZLcbKZJ30xNL_0LTPt4krcRg8&callback=myMap"></script>
-<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
-<script>
-$(document).ready(function () {
-    setTimeout(alert("HUOM! Data voi olla puutteellista, tarkista tiedot Soiten sivuilta"),5000)
-  });
-  
-  </script>
-
+  <H1>Age Estimator</H1>
+  <input type="file" name="fileToUpload" id="fileToUpload" accept="image/*">
+  <p id="opResult"></p>
 </body>
+<script>
+
+  document.getElementById("fileToUpload").addEventListener("change", function (event) {
+    ProcessImage();
+  }, false);
+  
+  //Calls DetectFaces API and shows estimated ages of detected faces
+  function DetectLabels(imageData) {
+    AWS.region = "us-east-1";
+    var rekognition = new AWS.Rekognition();
+    var params = {
+      Image: {
+        Bytes: imageData
+      },
+	  MaxLabels: 10,
+  		MinConfidence: 50.0
+    };
+	
+    rekognition.detectLabels(params, function (err, data) {
+      if (err) console.log(err, err.stack); // an error occurred
+      else {
+		console.log(data);  
+       var table = "<table><tr><th>Label</th><th>Condidence</th></tr>";
+        // show each face and build out estimated age table
+        for (var i = 0; i < data.Labels.length; i++) {
+			console.log(data.Labels[i].Instances);  
+			console.log(data.Labels[i].Parents);  
+          table += '<tr><td>' + data.Labels[i].Name  +
+            '</td><td>' + data.Labels[i].Confidence + '</td></tr>';
+        }
+        table += "</table>";
+        document.getElementById("opResult").innerHTML = table;
+      }
+    });
+  }
+  //Loads selected image and unencodes image bytes for Rekognition DetectFaces API
+  function ProcessImage() {
+    AnonLog();
+    var control = document.getElementById("fileToUpload");
+    var file = control.files[0];
+
+    // Load base64 encoded image 
+    var reader = new FileReader();
+    reader.onload = (function (theFile) {
+      return function (e) {
+        var img = document.createElement('img');
+        var image = null;
+        img.src = e.target.result;
+        var jpg = true;
+        try {
+          image = atob(e.target.result.split("data:image/jpeg;base64,")[1]);
+
+        } catch (e) {
+          jpg = false;
+        }
+        if (jpg == false) {
+          try {
+            image = atob(e.target.result.split("data:image/png;base64,")[1]);
+          } catch (e) {
+            alert("Not an image file Rekognition can process");
+            return;
+          }
+        }
+        //unencode image bytes for Rekognition DetectFaces API 
+        var length = image.length;
+        imageBytes = new ArrayBuffer(length);
+        var ua = new Uint8Array(imageBytes);
+        for (var i = 0; i < length; i++) {
+          ua[i] = image.charCodeAt(i);
+        }
+        //Call Rekognition  
+        DetectLabels(imageBytes);
+      };
+    })(file);
+    reader.readAsDataURL(file);
+  }
+  //Provides anonymous log on to AWS services
+  function AnonLog() {
+    
+    // Configure the credentials provider to use your identity pool
+    AWS.config.region = 'us-east-1'; // Region
+    AWS.config.credentials = new AWS.CognitoIdentityCredentials({
+      IdentityPoolId: 'us-east-1:51e1c811-f76d-4802-aa03-2a4532ffaefe',
+    });
+    // Make the call to obtain credentials
+    AWS.config.credentials.get(function () {
+      // Credentials will be available when this function is called.
+      var accessKeyId = AWS.config.credentials.accessKeyId;
+      var secretAccessKey = AWS.config.credentials.secretAccessKey;
+      var sessionToken = AWS.config.credentials.sessionToken;
+    });
+  }
+</script>
 </html>
